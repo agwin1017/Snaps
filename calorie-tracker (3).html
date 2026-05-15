@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Cal Tracker">
+<meta name="theme-color" content="#ffffff">
+<title>Calorie Tracker</title>
+<link rel="manifest" href="manifest.json">
+<style>
+  :root {
+    --green: #1D9E75;
+    --blue: #378ADD;
+    --amber: #EF9F27;
+    --red: #E24B4A;
+    --bg: #f5f5f3;
+    --surface: #ffffff;
+    --border: rgba(0,0,0,0.1);
+    --text: #1a1a1a;
+    --text2: #666;
+    --text3: #999;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a1a;
+      --surface: #2a2a2a;
+      --border: rgba(255,255,255,0.1);
+      --text: #f0f0f0;
+      --text2: #aaa;
+      --text3: #666;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: var(--bg); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: var(--text); }
+  body { display: flex; flex-direction: column; max-width: 480px; margin: 0 auto; }
+
+  /* Header */
+  .header { background: var(--surface); border-bottom: 0.5px solid var(--border); padding: 16px 16px 0; padding-top: calc(16px + env(safe-area-inset-top)); }
+  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .app-title { font-size: 20px; font-weight: 600; }
+  .date-nav { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-bottom: 10px; background: var(--bg); border-radius: var(--radius-sm); padding: 4px 6px; }
+  .date-nav button { background: none; border: none; border-radius: 6px; padding: 4px 14px; font-size: 20px; cursor: pointer; color: var(--text2); }
+  .date-nav span { font-size: 14px; font-weight: 500; text-align: center; flex: 1; }
+
+  /* Hamburger menu */
+  .menu-btn { background: none; border: 0.5px solid var(--border); border-radius: 8px; width: 36px; height: 36px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; flex-shrink: 0; }
+  .menu-btn span { display: block; width: 16px; height: 1.5px; background: var(--text2); border-radius: 2px; transition: transform 0.25s, opacity 0.25s; }
+  .menu-overlay { position: fixed; inset: 0; z-index: 100; pointer-events: none; }
+  .menu-overlay.open { pointer-events: all; }
+  .menu-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0); transition: background 0.28s ease; }
+  .menu-overlay.open .menu-backdrop { background: rgba(0,0,0,0.35); }
+  .menu-drawer {
+    position: absolute; top: 0; left: 0; bottom: 0;
+    width: 260px;
+    background: var(--surface);
+    border-right: 0.5px solid var(--border);
+    box-shadow: 4px 0 24px rgba(0,0,0,0.12);
+    transform: translateX(-100%);
+    transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex; flex-direction: column;
+    padding-top: env(safe-area-inset-top);
+    overflow-y: auto;
+  }
+  .menu-overlay.open .menu-drawer { transform: translateX(0); }
+  .menu-drawer-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 16px 12px; border-bottom: 0.5px solid var(--border); }
+  .menu-drawer-title { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .menu-close-btn { background: none; border: none; cursor: pointer; font-size: 20px; color: var(--text3); padding: 4px; line-height: 1; }
+  .menu-section-title { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; padding: 16px 16px 6px; }
+  .menu-item { padding: 13px 16px; font-size: 15px; cursor: pointer; display: flex; align-items: center; gap: 12px; color: var(--text); border-radius: 0; transition: background 0.15s; }
+  .menu-item:active { background: var(--bg); }
+  .menu-item-icon { font-size: 18px; width: 24px; text-align: center; }
+  .menu-divider { height: 0.5px; background: var(--border); margin: 4px 0; }
+
+  /* Export modal */
+  .modal-overlay { position: fixed; inset: 0; z-index: 200; display: none; align-items: flex-end; }
+  .modal-overlay.open { display: flex; }
+  .modal-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.4); }
+  .modal { position: relative; background: var(--surface); border-radius: var(--radius) var(--radius) 0 0; width: 100%; max-width: 480px; margin: 0 auto; padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); z-index: 1; }
+  .modal-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .modal-sub { font-size: 13px; color: var(--text2); margin-bottom: 18px; }
+  .modal-label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
+  .chip-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+  .chip { padding: 7px 13px; border: 0.5px solid var(--border); border-radius: 20px; font-size: 13px; cursor: pointer; background: none; color: var(--text2); white-space: nowrap; }
+  .chip.selected { background: var(--green); border-color: var(--green); color: white; font-weight: 600; }
+  .checkbox-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 0.5px solid var(--border); cursor: pointer; }
+  .checkbox-row:last-of-type { border-bottom: none; }
+  .checkbox-row input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--green); cursor: pointer; }
+  .checkbox-row label { font-size: 14px; cursor: pointer; flex: 1; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 18px; }
+  .btn-ghost { flex: 1; padding: 13px; font-size: 15px; font-weight: 600; border: 0.5px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; background: none; color: var(--text2); }
+  .btn-export { flex: 2; padding: 13px; font-size: 15px; font-weight: 600; border: none; border-radius: var(--radius-sm); cursor: pointer; background: var(--green); color: white; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 0; }
+  .tab { flex: 1; padding: 10px 0; font-size: 13px; font-weight: 500; background: none; border: none; cursor: pointer; color: var(--text3); border-bottom: 2px solid transparent; }
+  .tab.active { color: var(--green); border-bottom: 2px solid var(--green); }
+
+  /* Content */
+  .content { flex: 1; overflow-y: auto; padding: 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* Metric cards */
+  .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .metric-card { background: var(--surface); border-radius: var(--radius-sm); padding: 12px 14px; border: 0.5px solid var(--border); }
+  .metric-label { font-size: 11px; color: var(--text2); margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .metric-value { font-size: 22px; font-weight: 600; }
+  .metric-sub { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+  /* Macro ratio bar */
+  .macro-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 8px; gap: 2px; }
+  .macro-seg { height: 100%; transition: flex 0.3s; }
+  .macro-legend { display: flex; gap: 12px; margin-bottom: 10px; align-items: center; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .macro-cards-row { display: flex; gap: 8px; }
+  .macro-card-item { flex: 1; min-width: 0; padding: 10px 10px; position: relative; }
+  .macro-card-dot { width: 6px; height: 6px; border-radius: 50%; margin-bottom: 6px; }
+
+  /* Add food form */
+  .card { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
+  .card-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.04em; }
+  .field { margin-bottom: 10px; }
+  .field label { font-size: 12px; color: var(--text2); display: block; margin-bottom: 4px; }
+  .field input, .field select, .field textarea {
+    width: 100%; padding: 10px 12px; font-size: 15px; border: 0.5px solid var(--border);
+    border-radius: var(--radius-sm); background: var(--bg); color: var(--text);
+    font-family: inherit; outline: none; -webkit-appearance: none;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus { border-color: var(--green); }
+  .field textarea { min-height: 80px; resize: vertical; }
+  .macro-fields { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .btn { width: 100%; padding: 13px; font-size: 15px; font-weight: 600; border: none; border-radius: var(--radius-sm); cursor: pointer; }
+  .btn-primary { background: var(--green); color: white; }
+  .btn-primary:active { opacity: 0.85; transform: scale(0.99); }
+  .btn-danger { background: none; border: 0.5px solid var(--red); color: var(--red); }
+
+  /* Food log */
+  .meal-group { margin-bottom: 12px; }
+  .meal-header { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; padding-left: 2px; }
+  .food-item { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 0.5px solid var(--border); }
+  .food-info { flex: 1; min-width: 0; }
+  .food-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .food-macros { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .food-cals { font-size: 14px; font-weight: 600; min-width: 55px; text-align: right; flex-shrink: 0; }
+  .del-btn { background: none; border: none; cursor: pointer; color: var(--text3); font-size: 20px; padding: 4px; line-height: 1; flex-shrink: 0; }
+  .del-btn:active { color: var(--red); }
+  .empty-state { text-align: center; color: var(--text3); font-size: 14px; padding: 2rem 0; }
+
+  /* Trends */
+  .trend-sub-tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .trend-sub-tab { flex: 1; padding: 9px 0; font-size: 13px; font-weight: 500; background: none; border: 0.5px solid var(--border); border-radius: 20px; cursor: pointer; color: var(--text2); }
+  .trend-sub-tab.active { background: var(--green); border-color: var(--green); color: white; }
+  .trend-panel { display: none; }
+  .trend-panel.active { display: block; }
+  .chart-wrap { background: var(--surface); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 14px; margin-bottom: 14px; }
+  .chart-title { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 4px; }
+  .chart-sub { font-size: 11px; color: var(--text3); margin-bottom: 10px; }
+  .chart-legend { display: flex; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
+  .chart-container { position: relative; width: 100%; height: 220px; }
+
+  /* Weight unit toggle */
+  .unit-toggle { display: flex; background: var(--bg); border: 0.5px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .unit-btn { padding: 5px 12px; font-size: 13px; font-weight: 500; background: none; border: none; cursor: pointer; color: var(--text2); transition: background 0.15s, color 0.15s; }
+  .unit-btn.active { background: var(--green); color: white; font-weight: 600; }
+
+
+  .setting-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .setting-row label { font-size: 14px; flex: 1; }
+  .setting-row input { width: 90px; padding: 8px 10px; font-size: 14px; border: 0.5px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--text); text-align: right; font-family: inherit; outline: none; }
+  .setting-row input:focus { border-color: var(--green); }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #222; color: #fff; padding: 10px 20px; border-radius: 20px; font-size: 13px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 999; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+
+  /* Install banner */
+  .install-banner { display: none; background: var(--green); color: white; padding: 12px 16px; text-align: center; font-size: 13px; cursor: pointer; }
+  .install-banner.visible { display: block; }
+
+  /* Food search */
+  .search-wrap { position: relative; margin-bottom: 10px; }
+  .search-wrap input { padding-right: 36px; }
+  .search-spinner { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 16px; display: none; }
+  .search-spinner.active { display: block; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: translateY(-50%) rotate(360deg); } }
+  .search-results { border: 0.5px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); overflow: hidden; margin-bottom: 10px; display: none; }
+  .search-results.visible { display: block; }
+  .search-result-item { padding: 10px 12px; border-bottom: 0.5px solid var(--border); cursor: pointer; }
+  .search-result-item:last-child { border-bottom: none; }
+  .search-result-item:active { background: var(--bg); }
+  .result-name { font-size: 14px; font-weight: 500; }
+  .result-brand { font-size: 12px; color: var(--text3); }
+  .result-macros { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .serving-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .serving-row label { font-size: 12px; color: var(--text2); white-space: nowrap; }
+  .serving-row input { flex: 1; }
+  .search-mode-toggle { display: flex; gap: 6px; margin-bottom: 10px; }
+  .mode-btn { flex: 1; padding: 7px; font-size: 13px; border: 0.5px solid var(--border); border-radius: var(--radius-sm); background: none; color: var(--text2); cursor: pointer; }
+  .mode-btn.active { background: var(--green); color: white; border-color: var(--green); }
+</style>
+</head>
+<body>
+
+<div class="install-banner" id="install-banner" onclick="installApp()">
+  ➕ Add to Home Screen for the best experience
+</div>
+
+<!-- Side Drawer Menu -->
+<div class="menu-overlay" id="menu-overlay" onclick="closeMenuOnBackdrop(event)">
+  <div class="menu-backdrop"></div>
+  <div class="menu-drawer">
+    <div class="menu-drawer-header">
+      <div class="menu-drawer-title">🥗 Cal Tracker</div>
+      <button class="menu-close-btn" onclick="closeMenu()" aria-label="Close menu">✕</button>
+    </div>
+    <div class="menu-section-title">General</div>
+    <div class="menu-item" onclick="openSettingsModal()">
+      <span class="menu-item-icon">⚙️</span> Settings
+    </div>
+    <div class="menu-divider"></div>
+    <div class="menu-section-title">Data</div>
+    <div class="menu-item" onclick="openExportModal()">
+      <span class="menu-item-icon">📤</span> Export data
+    </div>
+    <div class="menu-item" onclick="clearAll(); closeMenu();">
+      <span class="menu-item-icon">🗑️</span> Clear all data
+    </div>
+  </div>
+</div>
+
+<!-- Export Modal -->
+<div class="modal-overlay" id="export-modal" onclick="closeExportOnBackdrop(event)">
+  <div class="modal-backdrop"></div>
+  <div class="modal">
+    <div class="modal-title">Export Data</div>
+    <div class="modal-sub">Download your data as an Excel spreadsheet (.xlsx)</div>
+
+    <div class="modal-label">Time Range</div>
+    <div class="chip-row" id="range-chips">
+      <button class="chip selected" onclick="selectRange(7, this)">Last 7 days</button>
+      <button class="chip" onclick="selectRange(14, this)">Last 14 days</button>
+      <button class="chip" onclick="selectRange(30, this)">Last 30 days</button>
+      <button class="chip" onclick="selectRange(60, this)">Last 60 days</button>
+      <button class="chip" onclick="selectRange(90, this)">Last 90 days</button>
+    </div>
+
+    <div class="modal-label">Include</div>
+    <div class="checkbox-row" onclick="toggleCheckbox('exp-weight')">
+      <input type="checkbox" id="exp-weight" checked>
+      <label for="exp-weight">⚖️ Weight log</label>
+    </div>
+    <div class="checkbox-row" onclick="toggleCheckbox('exp-meals')">
+      <input type="checkbox" id="exp-meals" checked>
+      <label for="exp-meals">🍽️ Logged meals</label>
+    </div>
+    <div class="checkbox-row" onclick="toggleCheckbox('exp-macros')">
+      <input type="checkbox" id="exp-macros" checked>
+      <label for="exp-macros">📊 Daily macros summary</label>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeExportModal()">Cancel</button>
+      <button class="btn-export" onclick="runExport()">📥 Export .xlsx</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="settings-modal" onclick="closeSettingsOnBackdrop(event)">
+  <div class="modal-backdrop"></div>
+  <div class="modal">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+      <div class="modal-title">Settings</div>
+      <button class="menu-close-btn" onclick="closeSettingsModal()">✕</button>
+    </div>
+    <div class="modal-sub">App preferences &amp; data management</div>
+
+    <div class="modal-label">About</div>
+    <div style="background:var(--bg); border-radius:var(--radius-sm); padding:12px 14px; margin-bottom:16px;">
+      <div style="font-size:13px; color:var(--text2); line-height:1.6;">
+        🥗 <strong style="color:var(--text);">Cal Tracker v2.0</strong><br>
+        Data is stored locally on this device and never uploaded.
+      </div>
+    </div>
+
+    <div class="modal-label">Data</div>
+    <div style="background:var(--bg); border-radius:var(--radius-sm); padding:12px 14px; margin-bottom:16px;">
+      <p style="font-size:13px; color:var(--text2); margin-bottom:12px;">Permanently delete all tracked data including meals, weight logs, and notes.</p>
+      <button class="btn btn-danger" onclick="clearAll(); closeSettingsModal();">Clear all data</button>
+    </div>
+
+    <button class="btn-ghost" onclick="closeSettingsModal()" style="width:100%; margin-top:4px;">Close</button>
+  </div>
+</div>
+
+<div class="header">
+  <div class="header-top">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button class="menu-btn" onclick="toggleMenu()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="app-title">🥗 Cal Tracker</div>
+    </div>
+  </div>
+  <div class="date-nav">
+    <button onclick="changeDay(-1)">‹</button>
+    <span id="date-display"></span>
+    <button onclick="changeDay(1)">›</button>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('today', this)">Your Log</button>
+    <button class="tab" onclick="showTab('trends', this)">Trends</button>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- TODAY -->
+  <div id="tab-today" class="section active">
+    <div class="metric-card" id="card-cals" style="margin-bottom:10px;">
+      <div class="metric-label">Calories</div>
+      <div class="metric-value" id="m-cals">0</div>
+      <div class="metric-sub" id="m-cals-goal"></div>
+    </div>
+
+    <div class="macro-bar">
+      <div class="macro-seg" id="prot-seg" style="background:var(--green); flex:0;"></div>
+      <div class="macro-seg" id="carb-seg" style="background:var(--blue); flex:0;"></div>
+      <div class="macro-seg" id="fat-seg" style="background:var(--amber); flex:0;"></div>
+      <div class="macro-seg" id="empty-seg" style="background:var(--border); flex:1;"></div>
+    </div>
+    <div class="macro-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Protein</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>Carbs</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div>Fat</div>
+    </div>
+
+    <div class="macro-cards-row" style="margin-bottom:14px;">
+      <div class="metric-card macro-card-item" id="card-prot">
+        <div class="macro-card-dot" style="background:var(--green);"></div>
+        <div class="metric-label">Protein</div>
+        <div class="metric-value" id="m-prot">0<span style="font-size:13px;font-weight:400;">g</span></div>
+        <div class="metric-sub" id="m-prot-pct" style="color:var(--green);"></div>
+      </div>
+      <div class="metric-card macro-card-item" id="card-carbs">
+        <div class="macro-card-dot" style="background:var(--blue);"></div>
+        <div class="metric-label">Carbs</div>
+        <div class="metric-value" id="m-carbs">0<span style="font-size:13px;font-weight:400;">g</span></div>
+        <div class="metric-sub" id="m-carbs-pct" style="color:var(--blue);"></div>
+      </div>
+      <div class="metric-card macro-card-item" id="card-fat">
+        <div class="macro-card-dot" style="background:var(--amber);"></div>
+        <div class="metric-label">Fat</div>
+        <div class="metric-value" id="m-fat">0<span style="font-size:13px;font-weight:400;">g</span></div>
+        <div class="metric-sub" id="m-fat-pct" style="color:var(--amber);"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <div class="card-title" style="margin-bottom:0;">Food Log</div>
+        <button class="btn btn-primary" id="food-log-btn" onclick="showFoodForm()" style="width:auto; padding:7px 18px; font-size:14px;">Log</button>
+      </div>
+
+      <div id="food-form-wrap" style="display:none; margin-top:14px;">
+        <div class="search-mode-toggle">
+          <button class="mode-btn active" id="mode-search" onclick="setMode('search')">🔍 Search foods</button>
+          <button class="mode-btn" id="mode-manual" onclick="setMode('manual')">✏️ Enter manually</button>
+        </div>
+
+        <!-- Search mode -->
+        <div id="search-panel">
+          <div class="field">
+            <label>Search USDA database</label>
+            <div class="search-wrap">
+              <input type="text" id="f-search" placeholder="e.g. egg, ground beef, strawberry…" oninput="onSearchInput()" autocomplete="off">
+              <span class="search-spinner" id="search-spinner">⟳</span>
+            </div>
+          </div>
+          <div class="search-results" id="search-results"></div>
+
+          <!-- Selected food details -->
+          <div id="selected-food-panel" style="display:none;">
+            <div style="background:var(--bg); border-radius:var(--radius-sm); padding:10px 12px; margin-bottom:10px; font-size:13px;">
+              <div id="sel-name" style="font-weight:600; margin-bottom:2px;"></div>
+              <div id="sel-info" style="color:var(--text2);"></div>
+            </div>
+            <div class="serving-row">
+              <label>Amount</label>
+              <input type="number" id="f-qty" value="1" min="0.1" step="0.1" inputmode="decimal" oninput="updateSelectedMacros()">
+              <select id="f-unit" onchange="updateSelectedMacros()" style="flex:2; padding:10px 8px; font-size:14px; border:0.5px solid var(--border); border-radius:var(--radius-sm); background:var(--bg); color:var(--text); font-family:inherit; outline:none; -webkit-appearance:none;"></select>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:6px; margin-bottom:10px; text-align:center;">
+              <div style="background:var(--bg); border-radius:var(--radius-sm); padding:8px 4px;">
+                <div style="font-size:11px; color:var(--text2);">Calories</div>
+                <div style="font-size:16px; font-weight:600;" id="prev-cals">0</div>
+              </div>
+              <div style="background:var(--bg); border-radius:var(--radius-sm); padding:8px 4px;">
+                <div style="font-size:11px; color:var(--text2);">Protein</div>
+                <div style="font-size:16px; font-weight:600;" id="prev-prot">0g</div>
+              </div>
+              <div style="background:var(--bg); border-radius:var(--radius-sm); padding:8px 4px;">
+                <div style="font-size:11px; color:var(--text2);">Carbs</div>
+                <div style="font-size:16px; font-weight:600;" id="prev-carbs">0g</div>
+              </div>
+              <div style="background:var(--bg); border-radius:var(--radius-sm); padding:8px 4px;">
+                <div style="font-size:11px; color:var(--text2);">Fat</div>
+                <div style="font-size:16px; font-weight:600;" id="prev-fat">0g</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Manual mode -->
+        <div id="manual-panel" style="display:none;">
+          <div class="field"><label>Food name</label><input type="text" id="f-name" placeholder="e.g. Chicken breast"></div>
+          <div class="field"><label>Calories (kcal)</label><input type="number" id="f-cals" placeholder="e.g. 350" inputmode="decimal"></div>
+          <div class="macro-fields">
+            <div class="field"><label>Protein (g)</label><input type="number" id="f-prot" placeholder="0" inputmode="decimal"></div>
+            <div class="field"><label>Carbs (g)</label><input type="number" id="f-carbs" placeholder="0" inputmode="decimal"></div>
+            <div class="field"><label>Fat (g)</label><input type="number" id="f-fat" placeholder="0" inputmode="decimal"></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Meal</label>
+          <select id="f-meal">
+            <option>Breakfast</option><option>Lunch</option><option>Dinner</option><option>Snack</option>
+          </select>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-ghost" style="flex:1; padding:13px; font-size:15px; font-weight:600; border:0.5px solid var(--border); border-radius:var(--radius-sm); cursor:pointer; background:none; color:var(--text2);" onclick="hideFoodForm()">Cancel</button>
+          <button class="btn btn-primary" style="flex:2;" onclick="addFood()">Log</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="food-log"></div>
+
+    <div class="card" style="margin-top:14px;">
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <div style="display:flex; align-items:baseline; gap:8px;">
+          <div class="card-title" style="margin-bottom:0;">Weight</div>
+          <span id="weight-display" style="font-size:15px; font-weight:600; color:var(--green);"></span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="unit-toggle">
+            <button class="unit-btn active" id="unit-lb" onclick="setWeightUnit('lb')">lb</button>
+            <button class="unit-btn" id="unit-kg" onclick="setWeightUnit('kg')">kg</button>
+          </div>
+          <button class="btn btn-primary" id="weight-log-btn" onclick="showWeightInput()" style="width:auto; padding:7px 18px; font-size:14px;">Log</button>
+        </div>
+      </div>
+
+      <div id="weight-input-wrap" style="display:none; margin-top:14px;">
+        <div class="field">
+          <label id="weight-label">Today's weight (lb)</label>
+          <input type="text" id="f-weight" inputmode="decimal" placeholder="e.g. 165.5" autocomplete="off"
+            oninput="sanitizeWeightInput(this)" onkeydown="blockWeightKeys(event)">
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-ghost" style="flex:1; padding:13px; font-size:15px; font-weight:600; border:0.5px solid var(--border); border-radius:var(--radius-sm); cursor:pointer; background:none; color:var(--text2);" onclick="hideWeightInput()">Cancel</button>
+          <button class="btn btn-primary" style="flex:2;" onclick="saveWeight()">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div class="card-title">Daily notes</div>
+      <div class="field"><textarea id="f-notes" placeholder="How did you feel today? Energy levels, sleep, cravings…"></textarea></div>
+      <button class="btn btn-primary" onclick="saveNotes()">Save notes</button>
+    </div>
+  </div>
+
+  <!-- TRENDS -->
+  <div id="tab-trends" class="section">
+    <div class="trend-sub-tabs">
+      <button class="trend-sub-tab active" id="stab-weight" onclick="showTrendPanel('weight', this)">⚖️ Weight</button>
+      <button class="trend-sub-tab" id="stab-macros" onclick="showTrendPanel('macros', this)">📊 Macros</button>
+    </div>
+
+    <!-- Weight panel -->
+    <div class="trend-panel active" id="trend-weight">
+      <div class="chart-wrap">
+        <div class="chart-title">Weight — last 30 days</div>
+        <div class="chart-sub">lbs</div>
+        <div class="chart-container" style="height:180px;"><canvas id="weight-chart"></canvas></div>
+      </div>
+      <div class="card" style="padding: 10px 14px;">
+        <div style="font-size:11px; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px;">Recent entries</div>
+        <div id="weight-list"></div>
+      </div>
+    </div>
+
+    <!-- Macros panel -->
+    <div class="trend-panel" id="trend-macros">
+      <div class="chart-wrap">
+        <div class="chart-title">Macro ratios — last 14 days</div>
+        <div class="chart-sub">% of total calories by macro</div>
+        <div class="chart-container"><canvas id="macro-chart"></canvas></div>
+        <div class="chart-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div>Protein</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div>Carbs</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div>Fat</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div id="tab-settings" class="section" style="display:none !important;"></div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<!-- SheetJS for xlsx export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ── State ──────────────────────────────────────────────
+let currentDate = todayKey();
+let data = {};
+let weightChart = null;
+let macroChart = null;
+let deferredPrompt = null;
+let exportDays = 7;
+let currentTrendPanel = 'weight';
+let weightUnit = 'lb'; // 'lb' or 'kg'
+
+// ── Dates ──────────────────────────────────────────────
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+function offsetKey(key, n) {
+  const d = new Date(key + 'T12:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function fmtDate(k) {
+  if (k === todayKey()) return 'Today';
+  if (k === offsetKey(todayKey(), -1)) return 'Yesterday';
+  if (k === offsetKey(todayKey(), 1)) return 'Tomorrow';
+  const date = new Date(k + 'T12:00:00');
+  const weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  return `${weekdays[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+}
+function shortDay(k) {
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  return days[new Date(k + 'T12:00:00').getDay()];
+}
+function shortDate(k) {
+  const [y, m, d] = k.split('-');
+  return `${+m}/${+d}`;
+}
+
+// ── Storage ────────────────────────────────────────────
+function load() {
+  try {
+    const raw = localStorage.getItem('ct_data2');
+    if (raw) data = JSON.parse(raw);
+    const savedUnit = localStorage.getItem('ct_weight_unit');
+    if (savedUnit === 'kg' || savedUnit === 'lb') {
+      weightUnit = savedUnit;
+      document.getElementById('unit-lb').classList.toggle('active', weightUnit === 'lb');
+      document.getElementById('unit-kg').classList.toggle('active', weightUnit === 'kg');
+      document.getElementById('weight-label').textContent = `Today's weight (${weightUnit})`;
+      document.getElementById('f-weight').placeholder = weightUnit === 'lb' ? 'e.g. 165.5' : 'e.g. 75.0';
+    }
+  } catch(e) {}
+}
+function persist() {
+  try { localStorage.setItem('ct_data2', JSON.stringify(data)); } catch(e) {}
+}
+function getDay(k) {
+  if (!data[k]) data[k] = { foods: [], weight: null, notes: '' };
+  return data[k];
+}
+
+// ── Totals ─────────────────────────────────────────────
+function totals(k) {
+  return (getDay(k).foods || []).reduce((acc, f) => {
+    acc.cals += f.cals || 0;
+    acc.prot += f.prot || 0;
+    acc.carbs += f.carbs || 0;
+    acc.fat += f.fat || 0;
+    return acc;
+  }, { cals: 0, prot: 0, carbs: 0, fat: 0 });
+}
+
+// ── Tabs ───────────────────────────────────────────────
+function showTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'trends') renderTrends();
+}
+
+function showTrendPanel(name, el) {
+  currentTrendPanel = name;
+  document.querySelectorAll('.trend-sub-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.trend-panel').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('trend-' + name).classList.add('active');
+  renderTrends();
+}
+
+function changeDay(n) {
+  const next = offsetKey(currentDate, n);
+  if (next > todayKey()) return;
+  currentDate = next;
+  renderToday();
+}
+
+// ── Render Today ───────────────────────────────────────
+function renderToday() {
+  document.getElementById('date-display').textContent = fmtDate(currentDate);
+  const t = totals(currentDate);
+
+  document.getElementById('m-cals').textContent = Math.round(t.cals);
+  document.getElementById('m-prot').innerHTML = Math.round(t.prot) + '<span style="font-size:14px;font-weight:400;">g</span>';
+  document.getElementById('m-carbs').innerHTML = Math.round(t.carbs) + '<span style="font-size:14px;font-weight:400;">g</span>';
+  document.getElementById('m-fat').innerHTML = Math.round(t.fat) + '<span style="font-size:14px;font-weight:400;">g</span>';
+
+  // Macro ratio percentages on sub-labels
+  const totalKcal = (t.prot * 4) + (t.carbs * 4) + (t.fat * 9);
+  if (totalKcal > 0) {
+    const protPct = Math.round((t.prot * 4) / totalKcal * 100);
+    const carbsPct = Math.round((t.carbs * 4) / totalKcal * 100);
+    const fatPct = Math.round((t.fat * 9) / totalKcal * 100);
+    document.getElementById('m-prot-pct').textContent = protPct + '% of kcal';
+    document.getElementById('m-carbs-pct').textContent = carbsPct + '% of kcal';
+    document.getElementById('m-fat-pct').textContent = fatPct + '% of kcal';
+  } else {
+    ['m-prot-pct','m-carbs-pct','m-fat-pct'].forEach(id => document.getElementById(id).textContent = '');
+  }
+
+  // Macro ratio bar (always shows ratio, not goal-based)
+  const barTotal = totalKcal || 1;
+  document.getElementById('prot-seg').style.flex = (t.prot * 4) / barTotal;
+  document.getElementById('carb-seg').style.flex = (t.carbs * 4) / barTotal;
+  document.getElementById('fat-seg').style.flex = (t.fat * 9) / barTotal;
+  document.getElementById('empty-seg').style.flex = totalKcal > 0 ? 0 : 1;
+
+  const day = getDay(currentDate);
+  document.getElementById('food-form-wrap').style.display = 'none';
+  document.getElementById('food-log-btn').style.display = '';
+  document.getElementById('weight-input-wrap').style.display = 'none';
+  document.getElementById('weight-log-btn').style.display = '';
+  updateWeightDisplay(day);
+  document.getElementById('f-notes').value = day.notes || '';
+
+  const log = document.getElementById('food-log');
+  log.innerHTML = '';
+  const meals = ['Breakfast','Lunch','Dinner','Snack'];
+  let hasFood = false;
+  meals.forEach(meal => {
+    const items = day.foods.filter(f => f.meal === meal);
+    if (!items.length) return;
+    hasFood = true;
+    const grp = document.createElement('div');
+    grp.className = 'meal-group';
+    const mealTotal = items.reduce((s, f) => s + (f.cals || 0), 0);
+    grp.innerHTML = `<div class="meal-header">${meal} · ${Math.round(mealTotal)} kcal</div>`;
+    items.forEach(f => {
+      const idx = day.foods.indexOf(f);
+      const el = document.createElement('div');
+      el.className = 'food-item';
+      el.innerHTML = `<div class="food-info"><div class="food-name">${f.name}</div><div class="food-macros">P: ${Math.round(f.prot)}g · C: ${Math.round(f.carbs)}g · F: ${Math.round(f.fat)}g</div></div>
+        <div class="food-cals">${Math.round(f.cals)}</div>
+        <button class="del-btn" onclick="removeFood(${idx})" aria-label="Remove">✕</button>`;
+      grp.appendChild(el);
+    });
+    log.appendChild(grp);
+  });
+  if (!hasFood) log.innerHTML = '<div class="empty-state">No food logged yet.<br>Add your first entry above.</div>';
+}
+
+// ── Render Trends ──────────────────────────────────────
+function renderTrends() {
+  if (currentTrendPanel === 'weight') renderWeightChart();
+  else renderMacroChart();
+}
+
+function renderWeightChart() {
+  const days = [];
+  for (let i = 29; i >= 0; i--) {
+    const k = offsetKey(todayKey(), -i);
+    const w = (data[k] && data[k].weight) ? data[k].weight : null;
+    days.push({ key: k, label: shortDate(k), weight: w });
+  }
+
+  const unitLabel = weightUnit === 'lb' ? 'lbs' : 'kg';
+  const convertW = w => w === null ? null : (weightUnit === 'lb'
+    ? Math.round(w * 2.20462 * 10) / 10
+    : Math.round(w * 10) / 10);
+
+  const hasData = days.some(d => d.weight !== null);
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+  const tickColor = isDark ? '#888' : '#999';
+
+  if (weightChart) weightChart.destroy();
+  const ctx = document.getElementById('weight-chart').getContext('2d');
+
+  // Update chart subtitle
+  document.querySelector('#trend-weight .chart-sub').textContent = unitLabel;
+
+  if (!hasData) {
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    weightChart = null;
+    document.getElementById('weight-list').innerHTML = '<div class="empty-state" style="padding:1rem 0;">No weight logs yet.<br>Log your weight on the Today tab.</div>';
+    return;
+  }
+
+  weightChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: days.map(d => d.label),
+      datasets: [{
+        data: days.map(d => convertW(d.weight)),
+        borderColor: '#1D9E75',
+        backgroundColor: 'rgba(29,158,117,0.1)',
+        borderWidth: 2,
+        pointRadius: days.map(d => d.weight !== null ? 4 : 0),
+        pointBackgroundColor: '#1D9E75',
+        spanGaps: true,
+        tension: 0.3,
+        fill: true,
+        label: `Weight (${unitLabel})`
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => c.raw !== null ? c.raw + ' ' + unitLabel : 'No data' } }
+      },
+      scales: {
+        y: {
+          grid: { color: gridColor },
+          ticks: { color: tickColor, font: { size: 11 }, callback: v => v + ' ' + unitLabel }
+        },
+        x: {
+          grid: { display: false },
+          ticks: { color: tickColor, font: { size: 10 }, maxTicksLimit: 10, maxRotation: 0 }
+        }
+      }
+    }
+  });
+
+  // Recent weight entries list
+  const list = document.getElementById('weight-list');
+  const entries = days.filter(d => d.weight !== null).reverse().slice(0, 10);
+  if (!entries.length) { list.innerHTML = '<div class="empty-state" style="padding:1rem 0;">No entries.</div>'; return; }
+  list.innerHTML = entries.map(d => `
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:0.5px solid var(--border);">
+      <span style="font-size:13px; color:var(--text2);">${fmtDate(d.key)}</span>
+      <span style="font-size:14px; font-weight:600;">${convertW(d.weight)} ${unitLabel}</span>
+    </div>`).join('');
+}
+
+function renderMacroChart() {
+  const days = [];
+  for (let i = 13; i >= 0; i--) {
+    const k = offsetKey(todayKey(), -i);
+    const t = totals(k);
+    const totalKcal = (t.prot * 4) + (t.carbs * 4) + (t.fat * 9);
+    if (totalKcal > 0) {
+      days.push({
+        label: shortDate(k),
+        protPct: Math.round((t.prot * 4) / totalKcal * 100),
+        carbsPct: Math.round((t.carbs * 4) / totalKcal * 100),
+        fatPct: Math.round((t.fat * 9) / totalKcal * 100)
+      });
+    } else {
+      days.push({ label: shortDate(k), protPct: 0, carbsPct: 0, fatPct: 0 });
+    }
+  }
+
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const gridColor = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+  const tickColor = isDark ? '#888' : '#999';
+
+  if (macroChart) macroChart.destroy();
+  const ctx = document.getElementById('macro-chart').getContext('2d');
+
+  macroChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: days.map(d => d.label),
+      datasets: [
+        {
+          label: 'Protein',
+          data: days.map(d => d.protPct),
+          backgroundColor: '#1D9E75',
+          borderRadius: 0,
+          stack: 'macros'
+        },
+        {
+          label: 'Carbs',
+          data: days.map(d => d.carbsPct),
+          backgroundColor: '#378ADD',
+          borderRadius: 0,
+          stack: 'macros'
+        },
+        {
+          label: 'Fat',
+          data: days.map(d => d.fatPct),
+          backgroundColor: '#EF9F27',
+          borderRadius: 2,
+          stack: 'macros'
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: c => `${c.dataset.label}: ${c.raw}%`
+          }
+        }
+      },
+      scales: {
+        y: {
+          stacked: true,
+          max: 100,
+          grid: { color: gridColor },
+          ticks: { color: tickColor, font: { size: 11 }, callback: v => v + '%' }
+        },
+        x: {
+          stacked: true,
+          grid: { display: false },
+          ticks: {
+            color: tickColor, font: { size: 10 },
+            maxTicksLimit: 10,
+            maxRotation: 0
+          }
+        }
+      }
+    }
+  });
+}
+
+// ── Menu ───────────────────────────────────────────────
+function toggleMenu() {
+  document.getElementById('menu-overlay').classList.toggle('open');
+}
+function closeMenu() {
+  document.getElementById('menu-overlay').classList.remove('open');
+}
+function closeMenuOnBackdrop(e) {
+  if (e.target.classList.contains('menu-backdrop') || e.target === document.getElementById('menu-overlay')) {
+    closeMenu();
+  }
+}
+
+// ── Export Modal ───────────────────────────────────────
+function openExportModal() {
+  closeMenu();
+  document.getElementById('export-modal').classList.add('open');
+}
+function closeExportModal() {
+  document.getElementById('export-modal').classList.remove('open');
+}
+function closeExportOnBackdrop(e) {
+  if (e.target === document.getElementById('export-modal') || e.target.classList.contains('modal-backdrop')) {
+    closeExportModal();
+  }
+}
+
+function openSettingsModal() {
+  closeMenu();
+  document.getElementById('settings-modal').classList.add('open');
+}
+function closeSettingsModal() {
+  document.getElementById('settings-modal').classList.remove('open');
+}
+function closeSettingsOnBackdrop(e) {
+  if (e.target === document.getElementById('settings-modal') || e.target.classList.contains('modal-backdrop')) {
+    closeSettingsModal();
+  }
+}
+function selectRange(days, el) {
+  exportDays = days;
+  document.querySelectorAll('#range-chips .chip').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+function toggleCheckbox(id) {
+  const el = document.getElementById(id);
+  el.checked = !el.checked;
+}
+
+function runExport() {
+  const incWeight = document.getElementById('exp-weight').checked;
+  const incMeals = document.getElementById('exp-meals').checked;
+  const incMacros = document.getElementById('exp-macros').checked;
+
+  if (!incWeight && !incMeals && !incMacros) {
+    toast('Select at least one data type');
+    return;
+  }
+
+  const wb = XLSX.utils.book_new();
+  const endKey = todayKey();
+
+  // Build date range
+  const dateRange = [];
+  for (let i = exportDays - 1; i >= 0; i--) {
+    dateRange.push(offsetKey(endKey, -i));
+  }
+
+  // Weight sheet
+  if (incWeight) {
+    const unitLabel = weightUnit === 'lb' ? 'lbs' : 'kg';
+    const convertW = w => w ? (weightUnit === 'lb' ? Math.round(w * 2.20462 * 100) / 100 : Math.round(w * 100) / 100) : '';
+    const rows = [['Date', `Weight (${unitLabel})`]];
+    dateRange.forEach(k => {
+      rows.push([k, convertW(data[k] && data[k].weight ? data[k].weight : null)]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 12 }, { wch: 14 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Weight');
+  }
+
+  // Logged meals sheet
+  if (incMeals) {
+    const rows = [['Date', 'Meal', 'Food', 'Calories', 'Protein (g)', 'Carbs (g)', 'Fat (g)']];
+    dateRange.forEach(k => {
+      const day = data[k];
+      if (day && day.foods && day.foods.length) {
+        day.foods.forEach(f => {
+          rows.push([
+            k,
+            f.meal || '',
+            f.name || '',
+            Math.round(f.cals || 0),
+            Math.round(f.prot || 0),
+            Math.round(f.carbs || 0),
+            Math.round(f.fat || 0)
+          ]);
+        });
+      }
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 12 }, { wch: 12 }, { wch: 30 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 10 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Logged Meals');
+  }
+
+  // Daily macros sheet
+  if (incMacros) {
+    const rows = [['Date', 'Calories', 'Protein (g)', 'Carbs (g)', 'Fat (g)', 'Protein %', 'Carbs %', 'Fat %', 'Weight (lbs)', 'Notes']];
+    dateRange.forEach(k => {
+      const t = totals(k);
+      const totalKcal = (t.prot * 4) + (t.carbs * 4) + (t.fat * 9);
+      const protPct = totalKcal > 0 ? Math.round((t.prot * 4) / totalKcal * 100) : 0;
+      const carbsPct = totalKcal > 0 ? Math.round((t.carbs * 4) / totalKcal * 100) : 0;
+      const fatPct = totalKcal > 0 ? Math.round((t.fat * 9) / totalKcal * 100) : 0;
+      const day = data[k] || {};
+      rows.push([
+        k,
+        Math.round(t.cals),
+        Math.round(t.prot),
+        Math.round(t.carbs),
+        Math.round(t.fat),
+        protPct + '%',
+        carbsPct + '%',
+        fatPct + '%',
+        day.weight || '',
+        day.notes || ''
+      ]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 14 }, { wch: 30 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Daily Macros');
+  }
+
+  const filename = `calorie-tracker-${endKey}-last${exportDays}days.xlsx`;
+  XLSX.writeFile(wb, filename);
+  closeExportModal();
+  toast('Export complete!');
+}
+
+// ── USDA Food Search ───────────────────────────────────
+const USDA_KEY = 'LqjcYFbV7pUaM8ANcJTLzPJuZSoaZBXIuzjLVMWZ';
+let searchTimer = null;
+let selectedFood = null;
+let currentMode = 'search';
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('mode-search').classList.toggle('active', mode === 'search');
+  document.getElementById('mode-manual').classList.toggle('active', mode === 'manual');
+  document.getElementById('search-panel').style.display = mode === 'search' ? 'block' : 'none';
+  document.getElementById('manual-panel').style.display = mode === 'manual' ? 'block' : 'none';
+  selectedFood = null;
+  document.getElementById('selected-food-panel').style.display = 'none';
+  document.getElementById('search-results').classList.remove('visible');
+  document.getElementById('f-search').value = '';
+}
+
+function onSearchInput() {
+  clearTimeout(searchTimer);
+  const q = document.getElementById('f-search').value.trim();
+  if (q.length < 2) { document.getElementById('search-results').classList.remove('visible'); return; }
+  searchTimer = setTimeout(() => searchUSDA(q), 400);
+}
+
+async function searchUSDA(q) {
+  const spinner = document.getElementById('search-spinner');
+  const resultsEl = document.getElementById('search-results');
+  spinner.classList.add('active');
+  resultsEl.classList.remove('visible');
+  try {
+    const url = `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_KEY}&query=${encodeURIComponent(q)}&pageSize=8&dataType=Foundation,SR%20Legacy,Branded`;
+    const res = await fetch(url);
+    const json = await res.json();
+    const foods = (json.foods || []).slice(0, 8);
+    resultsEl.innerHTML = '';
+    if (!foods.length) {
+      resultsEl.innerHTML = '<div class="search-result-item" style="color:var(--text3);">No results found</div>';
+    } else {
+      foods.forEach(f => {
+        const el = document.createElement('div');
+        el.className = 'search-result-item';
+        const cals = getNutrient(f.foodNutrients, 'Energy') || getNutrient(f.foodNutrients, 'Energy (Atwater General Factors)');
+        const prot = getNutrient(f.foodNutrients, 'Protein');
+        const carbs = getNutrient(f.foodNutrients, 'Carbohydrate, by difference');
+        const fat = getNutrient(f.foodNutrients, 'Total lipid (fat)');
+        el.innerHTML = `<div class="result-name">${f.description}</div>
+          ${f.brandOwner ? `<div class="result-brand">${f.brandOwner}</div>` : ''}
+          <div class="result-macros">${Math.round(cals||0)} kcal · P:${Math.round(prot||0)}g · C:${Math.round(carbs||0)}g · F:${Math.round(fat||0)}g <span style="color:var(--text3);">per 100g</span></div>`;
+        el.onclick = () => selectFood(f);
+        resultsEl.appendChild(el);
+      });
+    }
+    resultsEl.classList.add('visible');
+  } catch(e) {
+    resultsEl.innerHTML = '<div class="search-result-item" style="color:var(--red);">Search failed — check connection</div>';
+    resultsEl.classList.add('visible');
+  }
+  spinner.classList.remove('active');
+}
+
+function getNutrient(nutrients, name) {
+  if (!nutrients) return 0;
+  const n = nutrients.find(n => n.nutrientName === name || n.name === name);
+  return n ? (n.value || n.amount || 0) : 0;
+}
+
+async function selectFood(f) {
+  document.getElementById('search-results').classList.remove('visible');
+  document.getElementById('f-search').value = f.description;
+
+  let measures = [{ label: '100g', gramsPerUnit: 100 }];
+  try {
+    const res = await fetch(`https://api.nal.usda.gov/fdc/v1/food/${f.fdcId}?api_key=${USDA_KEY}`);
+    const detail = await res.json();
+    if (detail.foodPortions && detail.foodPortions.length) {
+      measures = detail.foodPortions.map(p => ({
+        label: p.portionDescription || p.modifier || p.measureUnit?.name || 'serving',
+        gramsPerUnit: p.gramWeight || 100
+      }));
+      measures.unshift({ label: '100g', gramsPerUnit: 100 });
+      measures.push({ label: '1 oz (28g)', gramsPerUnit: 28.35 });
+    } else if (detail.servingSize) {
+      measures = [
+        { label: `1 serving (${Math.round(detail.servingSize)}${detail.servingSizeUnit || 'g'})`, gramsPerUnit: detail.servingSize },
+        { label: '100g', gramsPerUnit: 100 },
+        { label: '1 oz (28g)', gramsPerUnit: 28.35 }
+      ];
+    } else {
+      measures = [
+        { label: '100g', gramsPerUnit: 100 },
+        { label: '1 oz (28g)', gramsPerUnit: 28.35 }
+      ];
+    }
+  } catch(e) {}
+
+  const nutrients = f.foodNutrients || [];
+  selectedFood = {
+    name: f.description,
+    cals100: getNutrient(nutrients, 'Energy') || getNutrient(nutrients, 'Energy (Atwater General Factors)'),
+    prot100: getNutrient(nutrients, 'Protein'),
+    carbs100: getNutrient(nutrients, 'Carbohydrate, by difference'),
+    fat100: getNutrient(nutrients, 'Total lipid (fat)'),
+    measures
+  };
+
+  const unitEl = document.getElementById('f-unit');
+  unitEl.innerHTML = measures.map((m, i) => `<option value="${i}">${m.label}</option>`).join('');
+  document.getElementById('f-qty').value = 1;
+  document.getElementById('sel-name').textContent = f.description;
+  document.getElementById('sel-info').textContent = f.brandOwner ? f.brandOwner : (f.dataType || '');
+  document.getElementById('selected-food-panel').style.display = 'block';
+  updateSelectedMacros();
+}
+
+function updateSelectedMacros() {
+  if (!selectedFood) return;
+  const qty = parseFloat(document.getElementById('f-qty').value) || 1;
+  const unitIdx = parseInt(document.getElementById('f-unit').value) || 0;
+  const grams = selectedFood.measures[unitIdx].gramsPerUnit * qty;
+  const factor = grams / 100;
+  document.getElementById('prev-cals').textContent = Math.round(selectedFood.cals100 * factor);
+  document.getElementById('prev-prot').textContent = Math.round(selectedFood.prot100 * factor) + 'g';
+  document.getElementById('prev-carbs').textContent = Math.round(selectedFood.carbs100 * factor) + 'g';
+  document.getElementById('prev-fat').textContent = Math.round(selectedFood.fat100 * factor) + 'g';
+}
+
+// ── Food form show/hide ────────────────────────────────
+function showFoodForm() {
+  document.getElementById('food-form-wrap').style.display = 'block';
+  document.getElementById('food-log-btn').style.display = 'none';
+}
+
+function hideFoodForm() {
+  document.getElementById('food-form-wrap').style.display = 'none';
+  document.getElementById('food-log-btn').style.display = '';
+  // Reset form state
+  selectedFood = null;
+  document.getElementById('f-search').value = '';
+  document.getElementById('f-qty').value = 1;
+  document.getElementById('selected-food-panel').style.display = 'none';
+  document.getElementById('search-results').classList.remove('visible');
+  ['f-name','f-cals','f-prot','f-carbs','f-fat'].forEach(id => document.getElementById(id).value = '');
+  setMode('search');
+}
+
+// ── Food actions ───────────────────────────────────────
+function addFood() {
+  const meal = document.getElementById('f-meal').value;
+
+  if (currentMode === 'search') {
+    if (!selectedFood) { toast('Search and select a food first'); return; }
+    const qty = parseFloat(document.getElementById('f-qty').value) || 1;
+    const unitIdx = parseInt(document.getElementById('f-unit').value) || 0;
+    const grams = selectedFood.measures[unitIdx].gramsPerUnit * qty;
+    const factor = grams / 100;
+    const unitLabel = selectedFood.measures[unitIdx].label;
+    getDay(currentDate).foods.push({
+      name: `${selectedFood.name} (${qty % 1 === 0 ? qty : qty.toFixed(1)} × ${unitLabel})`,
+      cals: selectedFood.cals100 * factor,
+      prot: selectedFood.prot100 * factor,
+      carbs: selectedFood.carbs100 * factor,
+      fat: selectedFood.fat100 * factor,
+      meal
+    });
+    persist();
+  } else {
+    const name = document.getElementById('f-name').value.trim();
+    const cals = parseFloat(document.getElementById('f-cals').value) || 0;
+    const prot = parseFloat(document.getElementById('f-prot').value) || 0;
+    const carbs = parseFloat(document.getElementById('f-carbs').value) || 0;
+    const fat = parseFloat(document.getElementById('f-fat').value) || 0;
+    if (!name || !cals) { toast('Enter a name and calories'); return; }
+    getDay(currentDate).foods.push({ name, cals, prot, carbs, fat, meal });
+    persist();
+  }
+
+  hideFoodForm();
+  renderToday();
+  toast('Added!');
+}
+
+function removeFood(i) {
+  getDay(currentDate).foods.splice(i, 1);
+  persist(); renderToday();
+}
+
+function updateWeightDisplay(day) {
+  const el = document.getElementById('weight-display');
+  if (day && day.weight) {
+    const val = weightUnit === 'lb'
+      ? Math.round(day.weight * 2.20462 * 10) / 10
+      : Math.round(day.weight * 10) / 10;
+    el.textContent = val + ' ' + weightUnit;
+  } else {
+    el.textContent = '';
+  }
+}
+
+function showWeightInput() {
+  const day = getDay(currentDate);
+  if (day.weight) {
+    const displayed = weightUnit === 'lb'
+      ? Math.round(day.weight * 2.20462 * 100) / 100
+      : Math.round(day.weight * 100) / 100;
+    document.getElementById('f-weight').value = displayed;
+  } else {
+    document.getElementById('f-weight').value = '';
+  }
+  document.getElementById('weight-log-btn').style.display = 'none';
+  document.getElementById('weight-input-wrap').style.display = 'block';
+  document.getElementById('f-weight').focus();
+}
+
+function hideWeightInput() {
+  document.getElementById('weight-input-wrap').style.display = 'none';
+  document.getElementById('weight-log-btn').style.display = '';
+}
+
+function saveWeight() {
+  const raw = parseFloat(document.getElementById('f-weight').value);
+  if (!raw || isNaN(raw)) { toast('Enter a weight value'); return; }
+  const kg = weightUnit === 'lb' ? raw / 2.20462 : raw;
+  getDay(currentDate).weight = Math.round(kg * 100) / 100;
+  persist();
+  hideWeightInput();
+  updateWeightDisplay(getDay(currentDate));
+  toast('Weight saved!');
+}
+
+// ── Weight unit helpers ────────────────────────────────
+function setWeightUnit(unit) {
+  weightUnit = unit;
+  try { localStorage.setItem('ct_weight_unit', unit); } catch(e) {}
+  document.getElementById('unit-lb').classList.toggle('active', unit === 'lb');
+  document.getElementById('unit-kg').classList.toggle('active', unit === 'kg');
+  document.getElementById('weight-label').textContent = `Today's weight (${unit})`;
+  // Re-populate input with converted value if there's a stored weight
+  const day = getDay(currentDate);
+  if (day.weight) {
+    const displayed = weightUnit === 'lb'
+      ? Math.round(day.weight * 2.20462 * 100) / 100
+      : Math.round(day.weight * 100) / 100;
+    document.getElementById('f-weight').value = displayed;
+  } else {
+    document.getElementById('f-weight').value = '';
+  }
+  document.getElementById('f-weight').placeholder = unit === 'lb' ? 'e.g. 165.5' : 'e.g. 75.0';
+  updateWeightDisplay(getDay(currentDate));
+}
+
+function sanitizeWeightInput(el) {
+  let val = el.value;
+  // Strip anything that isn't a digit or decimal point
+  val = val.replace(/[^0-9.]/g, '');
+  // Only one decimal point
+  const parts = val.split('.');
+  if (parts.length > 2) val = parts[0] + '.' + parts.slice(1).join('');
+  // Max 3 digits before decimal, 2 after
+  const [whole, dec] = val.split('.');
+  let newWhole = (whole || '').slice(0, 3);
+  let newVal = dec !== undefined ? newWhole + '.' + dec.slice(0, 2) : newWhole;
+  if (el.value !== newVal) el.value = newVal;
+}
+
+function blockWeightKeys(e) {
+  // Block special characters except digits, decimal, backspace, delete, arrows, tab
+  const allowed = ['Backspace','Delete','ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Tab','Enter','.'];
+  if (!allowed.includes(e.key) && !/^\d$/.test(e.key)) {
+    e.preventDefault();
+  }
+  // Block second decimal
+  if (e.key === '.' && e.target.value.includes('.')) e.preventDefault();
+}
+
+function saveNotes() {
+  getDay(currentDate).notes = document.getElementById('f-notes').value;
+  persist(); toast('Notes saved!');
+}
+
+function clearAll() {
+  if (!confirm('Delete all tracked data? This cannot be undone.')) return;
+  data = {}; persist(); renderToday(); toast('Data cleared');
+}
+
+// ── Toast ──────────────────────────────────────────────
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ── PWA Install ────────────────────────────────────────
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('install-banner').classList.add('visible');
+});
+function installApp() {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(() => {
+      deferredPrompt = null;
+      document.getElementById('install-banner').classList.remove('visible');
+    });
+  }
+}
+
+// ── Enter key on food form ─────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('f-cals') === document.activeElement) addFood();
+  if (e.key === 'Escape') { closeMenu(); closeExportModal(); closeSettingsModal(); }
+});
+
+// ── Init ───────────────────────────────────────────────
+load();
+renderToday();
+
+// ── Service Worker ─────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  const swCode = `
+const CACHE = 'cal-tracker-v2';
+const ASSETS = [self.location.href];
+self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS))));
+self.addEventListener('fetch', e => e.respondWith(caches.match(e.request).then(r => r || fetch(e.request))));
+  `;
+  const blob = new Blob([swCode], { type: 'application/javascript' });
+  const swUrl = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swUrl).catch(() => {});
+}
+</script>
+</body>
+</html>
